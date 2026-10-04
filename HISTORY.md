@@ -1,5 +1,19 @@
 # History
 
+## 2026-10-04
+
+### Consumer export review and manual deletion guides
+
+- Added offline review of supported ChatGPT and Claude JSON/ZIP exports, using
+  the existing discovery hints and private metadata helpers. Original files stay
+  unchanged; the native cleanup engine and its approval gates remain intact.
+- Added a manual whole-conversation checklist that counts other content at risk,
+  binds selections to exact export bytes, and cannot run as a native apply plan.
+- Validated graph provenance, hidden/tool exclusions, bounded ZIP parsing and
+  private output with independent review and 135 synthetic tests. No real
+  consumer export, account deletion or native-app resumption was exercised.
+- Updated the portable skill and README to explain both modes and installation.
+
 ## 2026-10-03
 
 ### Native Codex and combined-provider cleanup
