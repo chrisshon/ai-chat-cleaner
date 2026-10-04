@@ -392,6 +392,11 @@ class SourceTests(unittest.TestCase):
         self.old(path)
         with self.assertRaises(Refusal):
             self.scan()
+        with contextlib.closing(sqlite3.connect(path)) as db, db:
+            db.execute("UPDATE queued_items SET payload_json='{}'")
+        self.old(path)
+        with self.assertRaises(Refusal):
+            self.scan()
 
     def test_both_roots_and_outputs_cannot_overlap(self):
         self.put(self.source, [response(INSULT)])

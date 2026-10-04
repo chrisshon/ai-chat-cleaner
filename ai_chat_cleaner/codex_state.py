@@ -189,6 +189,8 @@ def read(path, record_prompts):
                     if value:
                         groups.append({"text": value, "paths": [()], "cell": cell, "copy_only": True})
                     continue
+                if hook == "queue":
+                    raise Refusal("nonempty Codex queued operations must be drained before cleanup")
                 decoded = load_json(value)
                 for group in record_prompts(decoded, hook):
                     paths = [tuple(p) for p in group["paths"]]
