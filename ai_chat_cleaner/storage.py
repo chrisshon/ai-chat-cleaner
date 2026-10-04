@@ -21,7 +21,7 @@ def canonical(value):
 
 def checked_path(value):
     if os.name != "posix":
-        raise Refusal("v1 requires macOS/Linux for private file permissions and atomic writes")
+        raise Refusal("requires macOS/Linux for private file permissions and atomic writes")
     path = Path(value).expanduser().absolute()
     # Check every ancestor, including a symlink passed as the root itself.
     for part in [*reversed(path.parents), path]:

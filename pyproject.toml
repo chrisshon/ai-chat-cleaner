@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-chat-cleaner"
-version = "0.1.0"
-description = "Review and redact selected user prompts from local Claude Code history."
+version = "0.2.0"
+description = "Review and redact selected user prompts from local Claude Code and Codex history."
 requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = []
