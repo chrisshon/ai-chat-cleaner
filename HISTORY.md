@@ -2,6 +2,17 @@
 
 ## 2026-10-03
 
+### Native Codex and combined-provider cleanup
+
+- Extended the existing review/plan/apply/verify engine with native Codex readers,
+  exact desktop SQLite/prompt-history mirrors, and one plan covering both apps.
+- Preserved Codex transcript byte positions and logical SQLite records. Unknown
+  formats, active database sidecars, nonempty queues and unproven rich references
+  refuse cleanup; generated/internal context remains excluded.
+- Independent review, 98 synthetic tests and fresh installed execution passed.
+  Read-only compatibility checks accepted current native transcript formats;
+  real personal-history cleanup and native-app resumption were not exercised.
+
 ### Initial local Claude Code cleanup release
 
 - Added conservative candidate discovery, contextual skill review, exact copy plans,
