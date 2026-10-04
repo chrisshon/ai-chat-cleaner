@@ -1,53 +1,68 @@
 # AI Chat Cleaner
 
-Find possible insults in local Claude Code history. Review them, choose exact messages, then remove their user text from supported local records.
+Review possible insults in local **Claude Code and Codex** history, choose exact messages, then redact their text from supported records. One CLI and approval plan cover either provider or both.
 
-The assistant skill performs the contextual review. The Python tool uses conservative discovery hints and never deletes something just because it contains profanity. Preserve useful corrections, quoted dialogue, praise and mixed requests. Discovery can miss insults; it is not a semantic classifier.
+Discovery uses conservative hints, not an AI classifier/API. The assistant skill reviews context. Preserve useful corrections, quotes, praise and mixed requests. Discovery can miss insults; nothing is automatically deleted.
 
 ## Install
 
-Use Python **3.10+** on **macOS or Linux**. Runtime dependencies are all in Python's standard library; installation uses setuptools.
+Use **Python 3.10+ on macOS/Linux**. Check `python3 --version`; some Macs ship Python 3.9, so substitute an installed `python3.12` or `python3.13`. Runtime is standard-library only; installation uses setuptools and Git.
+
+Install the CLI in a virtual environment and the portable skill for Codex:
+
+```bash
+python3 -m venv "$HOME/ai-chat-cleaner-venv"
+"$HOME/ai-chat-cleaner-venv/bin/python" -m pip install --no-deps \
+  'git+https://github.com/chrisshon/ai-chat-cleaner.git'
+mkdir -p "$HOME/.agents/skills/ai-chat-cleaner"
+curl -fsSL https://raw.githubusercontent.com/chrisshon/ai-chat-cleaner/main/skills/ai-chat-cleaner/SKILL.md \
+  -o "$HOME/.agents/skills/ai-chat-cleaner/SKILL.md"
+"$HOME/ai-chat-cleaner-venv/bin/ai-chat-cleaner" --version
+export PATH="$HOME/ai-chat-cleaner-venv/bin:$PATH"
+```
+
+For Claude Code, use `~/.claude/skills/ai-chat-cleaner/SKILL.md` instead. Install the same skill in both hosts if desired. Give it the CLI's absolute path or put the executable on `PATH`. The skill requires the companion CLI. Windows and ChatGPT history are unsupported.
+
+Alternatively, clone into a new directory and install locally:
 
 ```bash
 git clone https://github.com/chrisshon/ai-chat-cleaner.git
 cd ai-chat-cleaner
 python3 -m venv .venv
 .venv/bin/python -m pip install --no-deps .
-.venv/bin/ai-chat-cleaner --version
 ```
-
-For Claude Code, copy `skills/ai-chat-cleaner` into `~/.claude/skills/`. For Codex, copy it into `~/.agents/skills/`. Give your assistant the absolute `.venv/bin/ai-chat-cleaner` path, or keep that executable on `PATH`. The [skill](skills/ai-chat-cleaner/SKILL.md) requires the companion CLI.
-
-Windows and Codex/ChatGPT histories are unsupported in v1. Windows runs refuse because this version requires POSIX file permission protection.
 
 ## Review, then apply
 
-Use returned IDs and confirmation hashes in place of the sample values. Create a private working directory outside the history root:
+Root choices apply to both `scan` and `plan`:
 
-```bash
-mkdir -m 700 "$HOME/ai-chat-cleaner-review"
-```
+| Source | Defaults and optional custom roots |
+| --- | --- |
+| Omit `--source`, or `--source claude` | `~/.claude`; `--root /custom/claude` |
+| `--source codex` | `~/.codex`; `--root /custom/codex` |
+| `--source all` | Both defaults; `--claude-root /custom/claude --codex-root /custom/codex` |
 
-1. Scan without changing history. `--preview` explicitly prints sensitive prompts into the terminal or assistant conversation. Omit it for metadata only. Reports never save prompt text.
+Both roots must be distinct and non-nested. With `all`, use provider-specific flags, not `--root`.
+
+1. Close every targeted desktop/CLI client and wait **120 seconds after the last history write**, including Codex before full scanning. If hosted in a targeted app, hand off to an offline terminal, then close that host. Keep clients closed through verification. Nonempty SQLite WAL/SHM/journal sidecars block scans/cleanup; never remove them to bypass the gate.
+
+2. Create a private review directory outside both roots. Scan is read-only. `--preview` prints sensitive prompts into the terminal/conversation and can create another copy; omit it for metadata only. Reports never contain prompt text.
 
    ```bash
-   ai-chat-cleaner scan --root "$HOME/.claude" --preview \
+   mkdir -m 700 "$HOME/ai-chat-cleaner-review"
+   ai-chat-cleaner scan --source all --preview \
      --report "$HOME/ai-chat-cleaner-review/scan.json"
    ```
 
-2. Review candidates in their surrounding conversation. Keep useful instructions and mixed messages. Use `scan --all --preview` only for deliberate broader review.
-
-3. Close **all Claude Code sessions** and wait two minutes after the last history write. Use a terminal or a different assistant such as Codex for the remaining commands. Reviewing your own live Claude history changes files and invalidates plans.
-
-4. Create a plan for selected IDs, then inspect the dry run. It lists every exact matching supported copy and gives a confirmation hash. Any subsequent change to supported history invalidates it.
+3. Review surrounding context and keep mixed messages. Use `scan --all --preview` only for deliberate broader review, retaining source/root flags. Select returned IDs, then inspect the complete copy list:
 
    ```bash
-   ai-chat-cleaner plan --root "$HOME/.claude" --select MESSAGE_ID \
+   ai-chat-cleaner plan --source all --select MESSAGE_ID \
      --out "$HOME/ai-chat-cleaner-review/plan.json"
    ai-chat-cleaner apply --plan "$HOME/ai-chat-cleaner-review/plan.json" --dry-run
    ```
 
-5. Approve the **complete copy list**, then apply. The tool makes no removed-text backup and cannot undo this change.
+4. Approve every expanded copy. Exact full-prompt hashes expand across selected providers and sessions. There is no removed-text backup or undo. Version 2 rejects older plans: rescan and approve a new plan. Supported-history changes invalidate approval.
 
    ```bash
    ai-chat-cleaner apply --plan "$HOME/ai-chat-cleaner-review/plan.json" \
@@ -56,32 +71,22 @@ mkdir -m 700 "$HOME/ai-chat-cleaner-review"
    ai-chat-cleaner verify --receipt "$HOME/ai-chat-cleaner-review/receipt.json"
    ```
 
-Reports, plans and receipts contain only metadata and have permissions `0600`. Keep them outside the history root. Existing outputs are never overwritten by a new command; use new names for new runs. Results/errors are JSON. Refusals exit with code 2.
+Metadata uses `0600`; outputs are never overwritten. Use new filenames. Results/errors are JSON; refusals exit 2.
 
-## Exact coverage
+## Coverage and limits
 
-| Location | What can change |
+Only known native formats are supported; unknown schemas/versions fail closed. Rich desktop documents require proof that their complete text matches the saved reference; otherwise selecting that prompt refuses without changing history.
+
+| Provider | Supported text |
 | --- | --- |
-| `projects/**/*.jsonl` | Direct human `user` content strings or `text` blocks. |
-| Subagent/sidechain and `last-prompt.lastPrompt` records | Exact full-text mirrors of a supported parent/history human prompt, displayed for approval. Generated subagent inputs are excluded. |
-| `history.jsonl` | Exact matching `display` strings. |
+| Claude Code | Human text in `projects/**/*.jsonl`, `history.jsonl` display strings, and exact sidechain/subagent/`lastPrompt` mirrors. Generated subagent inputs remain. |
+| Codex | Human inputs in `sessions/**/*.jsonl` and `archived_sessions/**/*.jsonl`; exact replay/compacted copies, `history.jsonl`, `session_index.jsonl`, and known desktop prompt-history/`thread-descriptions-v1` mirrors. |
+| Codex SQLite | Exact mirrors in `state_5.sqlite` threads' `first_user_message`/`title`/`preview`/`name` and known item JSON in `thread_history_1.sqlite`. Known `queue_1.sqlite` schemas are validated; nonempty queued operations refuse and must be drained before cleanup. |
 
-Selected strings become `[User text removed locally by ai-chat-cleaner]`. UUIDs, record order, non-text blocks and unselected bytes stay intact. This is **local text redaction**, not deletion of conversation records. All full-prompt matches appear in the plan, including identical messages in different sessions. An insult inside a longer useful prompt is not a full match.
+Claude strings become `[User text removed locally by ai-chat-cleaner]`. Codex JSON uses that marker when it fits; otherwise an empty string plus JSON whitespace preserves byte positions. Records and unselected transcript bytes remain. SQLite preserves logical records, not database bytes. Mirrors require an exact full-prompt match; arbitrary unsubmitted drafts are not covered.
 
-Assistant replies, tool output, summaries/compaction, attachments, `pastedContents`, memory files, other logs/caches, exports, backups and cloud data are excluded. They can retain quotations or transformed copies. Previewing in another assistant can create another copy. The tool cannot erase AI memory, change training data, or guarantee secure SSD erasure.
+Partial/derived quotes, assistant/tool text, summaries, pasted attachments, memory, other logs/caches, exports, backups and server/cloud data remain excluded. Exact supported human copies in compacted records are the exception. This cannot erase AI memory, change training data, or guarantee permanent/secure SSD erasure.
 
-## Failure behavior
+Malformed/unreadable files, unsafe links, recent writes and stale plans refuse. Replacement is atomic per file; interruptions can leave partial results. Inspect `incomplete`/`pending` receipts and `temporary_files_to_check` before replanning; verify refuses incomplete receipts. Age/digest checks cannot prevent concurrent writers. Cross-file power-loss durability, extended attributes, ACLs and original timestamps are not guaranteed.
 
-Malformed JSON, unsupported types/schemas, unreadable files, symlinks, hardlinks, recent writes and stale plans refuse. Files are never silently skipped to make an apply succeed. Unknown metadata fields are preserved without deletion claims.
-
-Replacement is atomic **per file**, preserving permission bits. Disk errors or interruptions can leave a partial multi-file result. Apply errors report `incomplete` after changes, with the receipt path and changed-file count; failed receipt updates can leave its status `pending`. Cleanup failures list `temporary_files_to_check`, the paths that may still contain redacted drafts. Inspect current files before replanning; verification refuses incomplete receipts. Temporary files contain proposed redacted results, never removed-text backups.
-
-Keep every history writer closed until verification finishes. Age/digest checks detect changes but cannot prevent another program racing a write. Power-loss durability across files, extended attributes, ACLs and original timestamps are not guaranteed.
-
-## Test
-
-```bash
-python3 -m unittest discover -s tests -v
-```
-
-Tests use synthetic histories only. They cover detection, preservation, copy expansion, tool/replay exclusion, bytes, stale/recent files, unsafe paths, failure reporting and the complete CLI workflow. GitHub Actions is configured for macOS/Linux with Python 3.10/3.13; configuration alone does not prove a remote run passed.
+Synthetic tests: `python3 -m unittest discover -s tests -v`.
