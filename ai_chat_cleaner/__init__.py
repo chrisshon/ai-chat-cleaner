@@ -1,3 +1,3 @@
-"""Local Claude Code prompt review and redaction. No network calls."""
+"""Local prompt cleanup and read-only consumer export review. No network calls."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
